@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <title>CSE6242 Team 43</title>
+    <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script
+        src="https://code.jquery.com/jquery-3.3.1.min.js"
+        integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+        crossorigin="anonymous">
+    </script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+    <style>
+      html, body, #map { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        .nicebox {
+          position: absolute;
+          text-align: center;
+          font-family: "Roboto", "Arial", sans-serif;
+          font-size: 13px;
+          z-index: 5;
+          box-shadow: 0 4px 6px -4px #333;
+          padding: 5px 10px;
+          background: rgb(255,255,255);
+          background: linear-gradient(to bottom,rgba(255,255,255,1) 0%,rgba(245,245,245,1) 100%);
+          border: rgb(229, 229, 229) 1px solid;
+        }
+        #controls {
+          top: 60px;
+          left: 7px;
+          width: 360px;
+          height: 150px;
+        }
+        #data-box {
+          top: 10px;
+          left: 800px;
+          height: auto;
+          line-height: 45px;
+          display: none;
+        }
+        #census-variable {
+          width: 360px;
+          height: 20px;
+        }
+        #legend { display: flex; display: -webkit-box; padding-top: 7px }
+        .color-key {
+          /*rgb(242, 240, 247)*/
+          background: linear-gradient(to right,
+            hsl(5, 69%, 54%) 0%,
+            hsl(29, 71%, 51%) 17%,
+            hsl(54, 74%, 47%) 33%,
+            hsl(78, 76%, 44%) 50%,
+            hsl(102, 78%, 41%) 67%,
+            hsl(127, 81%, 37%) 83%,
+            hsl(151, 83%, 34%) 100%);
+          flex: 1;
+          -webkit-box-flex: 1;
+          margin: 0 5px;
+          text-align: left;
+          font-size: 1.0em;
+          line-height: 1.0em;
+        }
+        #data-value { font-size: 2.0em; font-weight: bold }
+        #data-label { font-size: 2.0em; font-weight: normal; padding-right: 10px; }
+        #data-label:after { content: ':' }
+        #data-caret { margin-left: -5px; display: none; font-size: 14px; width: 14px}
+
+        #census-variable {
+          display: none;
+        }
+
+        .filter {
+          display: inline-block;
+          margin-top: 5px;
+          margin-bottom: 5px;
+        }
+
+        .filterbutton {
+          margin-top: 5px;
+        }
+    </style>
+  </head>
+  <body>
+    <div id="controls" class="nicebox container">
+      <div>
+        <select id="census-variable">
+          <option value="us_all_mortgage_data.csv">Mortgage Risk Points</option>
+        </select>
+      </div>
+      <div>
+        <span>Mortgage Default Percentage Range</span>
+      </div>
+      <div id="legend">
+        <div id="census-min">min</div>
+        <div class="color-key"><span id="data-caret">&#x25c6;</span></div>
+        <div id="census-max">max</div>
+      </div>
+      <div>
+        <div id="filterdiv">
+          <div id="vintagediv" class="filter">
+            <span>Vintage</span>
+          </div>
+          <div id="yeardiv" class="filter">
+            <span>Year</span>
+          </div>
+          <div id="ficodiv" class="filter">
+            <span>FICO</span>
+          </div>
+          <div id="ltvdiv" class="filter">
+            <span>LTV</span>
+          </div>
+        </div>
+         <button id="filter" class="btn btn-primary active" type="button">Filter</button>
+      </div>
+    </div>
+    <div id="data-box" class="nicebox">
+      <h4>
+        <label id="data-label" for="data-value"></label>
+        <span id="data-value"></span><span id="test-value"></span>
+      </h4>
+      <a href="#demo" class="btn btn-info" data-toggle="collapse" id="details">Details</a>
+      <div id="demo" class="collapse">
+        <ul class="list-group">
+          <li class="list-group-item">
+            <label id="defaultno-label" for="defaultno-value">Default Number:</label>
+            <span id="defaultno-value"></span>
+          </li>
+          <li class="list-group-item">
+            <label id="observationno-label" for="observationno-value">Observation Number:</label>
+            <span id="observationno-value"></span>
+          </li> 
+          <li class="list-group-item">
+            <label id="averagerisk-label" for="averagerisk-value">Average Risk Point:</label>
+            <span id="averagerisk-value"></span>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+    <div id="map"></div>
+    <script>
+      var mapStyle = [{
+        'stylers': [{'visibility': 'off'}]
+      }, {
+        'featureType': 'landscape',
+        'elementType': 'geometry',
+        'stylers': [{'visibility': 'on'}, {'color': '#fcfcfc'}]
+      }, {
+        'featureType': 'water',
+        'elementType': 'geometry',
+        'stylers': [{'visibility': 'on'}, {'color': '#bfd4ff'}]
+      }];
+      var map;
+      var censusMin = Number.MAX_VALUE, censusMax = -Number.MAX_VALUE;
+
+      var state_abbr = {
+        "AL": "Alabama",
+        "AK": "Alaska",
+        "AZ": "Arizona",
+        "AR": "Arkansas",
+        "CA": "California",
+        "CO": "Colorado",
+        "CT": "Connecticut",
+        "DE": "Delaware",
+        "DC": "District Of Columbia",
+        "FL": "Florida",
+        "GA": "Georgia",
+        "HI": "Hawaii",
+        "ID": "Idaho",
+        "IL": "Illinois",
+        "IN": "Indiana",
+        "IA": "Iowa",
+        "KS": "Kansas",
+        "KY": "Kentucky",
+        "LA": "Louisiana",
+        "ME": "Maine",
+        "MD": "Maryland",
+        "MA": "Massachusetts",
+        "MI": "Michigan",
+        "MN": "Minnesota",
+        "MS": "Mississippi",
+        "MO": "Missouri",
+        "MT": "Montana",
+        "NE": "Nebraska",
+        "NV": "Nevada",
+        "NH": "New Hampshire",
+        "NJ": "New Jersey",
+        "NM": "New Mexico",
+        "NY": "New York",
+        "NC": "North Carolina",
+        "ND": "North Dakota",
+        "OH": "Ohio",
+        "OK": "Oklahoma",
+        "OR": "Oregon",
+        "PA": "Pennsylvania",
+        "RI": "Rhode Island",
+        "SC": "South Carolina",
+        "SD": "South Dakota",
+        "TN": "Tennessee",
+        "TX": "Texas",
+        "UT": "Utah",
+        "VT": "Vermont",
+        "VA": "Virginia",
+        "WA": "Washington",
+        "WV": "West Virginia",
+        "WI": "Wisconsin",
+        "WY": "Wyoming"
+      }
+
+      var state_abbr_to_id = {
+        "Alabama": "1",
+        "Alaska": "2",
+        "Arizona": "4",
+        "Arkansas": "5",
+        "California": "6",
+        "Colorado": "8",
+        "Connecticut": "9",
+        "Delaware": "10",
+        "District Of Columbia": "11",
+        "Florida": "12",
+        "Georgia": "13",
+        "Hawaii": "15",
+        "Idaho": "16",
+        "Illinois": "17",
+        "Indiana": "18",
+        "Iowa": "19",
+        "Kansas": "20",
+        "Kentucky": "21",
+        "Louisiana": "22",
+        "Maine": "23",
+        "Maryland": "24",
+        "Massachusetts": "25",
+        "Michigan": "26",
+        "Minnesota": "27",
+        "Mississippi": "28",
+        "Missouri": "29",
+        "Montana": "30",
+        "Nebraska": "31",
+        "Nevada": "32",
+        "New Hampshire": "33",
+        "New Jersey": "34",
+        "New Mexico": "35",
+        "New York": "36",
+        "North Carolina": "37",
+        "North Dakota": "38",
+        "Ohio": "39",
+        "Oklahoma": "40",
+        "Oregon": "41",
+        "Pennsylvania": "42",
+        "Rhode Island": "44",
+        "South Carolina": "45",
+        "South Dakota": "46",
+        "Tennessee": "47",
+        "Texas": "48",
+        "Utah": "49",
+        "Vermont": "50",
+        "Virginia": "51",
+        "Washington": "53",
+        "West Virginia": "54",
+        "Wisconsin": "55",
+        "Wyoming": "56"
+      }
+
+      function initMap() {
+        var us_all_mortgage_data;
+
+        d3.csv("Dflts_By_State.csv", function(data) {
+
+          map = new google.maps.Map(document.getElementById('map'), {
+            center: {lat: 40, lng: -100},
+            zoom: 4,
+            styles: mapStyle
+          });
+
+          // Vintage filter drop-down
+          var vintageSelector = d3.select("#vintagediv")
+            .append("select")
+            .attr("id", "vintageselector")
+            .attr("class", "selector")
+            .selectAll("option")
+            .data(d3.map(data, function(d){return d.vintage_filter;}).keys()).enter()
+            .append("option")
+            .text(function(d) { return d; })
+
+          // Year filter  
+          var yearSelector = d3.select("#yeardiv")
+            .append("select")
+            .attr("id", "yearselector")
+            .attr("class", "selector")
+            .selectAll("option")
+            .data(d3.map(data, function(d){return d.year_filter;}).keys()).enter()
+            .append("option")
+            .text(function(d) { return d; })
+          
+          // FICO filter drop-down
+          var ficoSelector = d3.select("#ficodiv")
+            .append("select")
+            .attr("id", "ficoselector")
+            .attr("class", "selector")
+            .selectAll("option")
+            .data(d3.map(data, function(d){return d.fico_filter;}).keys()).enter()
+            .append("option")
+            .text(function(d) { return d; })
+
+          // LTV filter drop-down
+          var ltvSelector = d3.select("#ltvdiv")
+            .append("select")
+            .attr("id", "ltvselector")
+            .attr("class", "selector")
+            .selectAll("option")
+            .data(d3.map(data, function(d){return d.ltv_filter;}).keys()).enter()
+            .append("option")
+            .text(function(d) { return d; })
+
+          // set up the style rules and events for google.maps.Data
+          map.data.setStyle(styleFeature);
+          map.data.addListener('mouseover', mouseInToRegion);
+          map.data.addListener('mouseout', mouseOutOfRegion);
+
+          // wire up the button
+          var selectBox = document.getElementById('census-variable');
+          google.maps.event.addDomListener(selectBox, 'change', function() {
+            $("#vintageselector").val('n/a');
+            $("#yearselector").val('1999-2017');
+            $("#ficoselector").val('(300,850]');
+            $("#ltvselector").val('(0,105]');
+            clearCensusData();
+            loadAllData();
+          });
+
+          // wire up the button
+          var filterButton = document.getElementById('filter');
+          google.maps.event.addDomListener(filterButton, 'click', function() {
+            // alert("Button Clicked");
+            var vintagesel = $('#vintageselector').val();
+            var yearsel = $('#yearselector').val();
+
+            // if equals n/a, any selection is valid.
+            if (vintagesel != 'n/a') {
+              if (vintagesel.indexOf('-') > -1) {
+                if (vintagesel != yearsel) {
+                  return;
+                }
+              } else {
+                if (yearsel.indexOf('-') > -1) {
+                  // split, [0] should be equal or larger 
+                  var startyear = yearsel.split('-')[0];
+                  if (parseInt(startyear) < parseInt(vintagesel)) {
+                    return;
+                  }
+                } else {
+                  // or should be just work
+                  if (parseInt(yearsel) < parseInt(vintagesel)) {
+                    return;
+                  }
+                }
+              }
+            }
+            clearCensusData();
+            loadCustomData(data);
+          });
+
+          console.log("completed");
+          loadMapShapes();
+        });
+      }
+
+      /** Loads the state boundary polygons from a GeoJSON source. */
+      function loadMapShapes() {
+        // load US state outline polygons from a GeoJson file
+        map.data.loadGeoJson('https://storage.googleapis.com/mapsdevsite/json/states.js', 
+          { idPropertyName: 'STATE' });
+
+        // wait for the request to complete by listening for the first feature to be added.
+        google.maps.event.addListenerOnce(map.data, 'addfeature', function() {
+          google.maps.event.trigger(document.getElementById('census-variable'), 'change');
+        });
+      }
+
+      function loadAllData() {
+        var file = "us_all_mortgage_data.csv";
+        d3.csv(file, function(data) {
+          data.forEach(function(row) {
+            var stateAbbr = row["State"];
+            var stateName = state_abbr[stateAbbr];
+            var stateId = state_abbr_to_id[stateName];
+            var censusVariable = round(row["Default_Prcnt"], 3);
+            // keep track of min and max values
+            if (censusVariable < censusMin) {
+              censusMin = censusVariable;
+            }
+            if (censusVariable > censusMax) {
+              censusMax = censusVariable;
+            }
+
+            var censusObj = {
+              "censusVariable":censusVariable,
+              "Default_Prcnt":round(row["Default_Prcnt"],3),
+              "Defaults":row["Defaults"],
+              "Observations":row["Observations"],
+              "Avg_RiskPoints":row["Avg_RiskPoints"],
+            }
+
+            map.data
+              .getFeatureById(stateId)
+              //.setProperty('census_variable', censusVariable)
+              .setProperty('census_variable', censusObj);
+          });
+
+          document.getElementById('census-min').textContent =
+              censusMin.toLocaleString();
+          document.getElementById('census-max').textContent =
+              censusMax.toLocaleString();
+        });
+      }
+
+      function round(value, decimals) {
+        return Number(Math.round(value+'e'+decimals)+'e-'+decimals);
+      }
+
+      function loadCustomData(data) {
+
+        var vintagesel = $('#vintageselector').val();
+        var yearsel = $('#yearselector').val();
+        var ficosel = $('#ficoselector').val();
+        var ltvsel = $('#ltvselector').val();
+        var counter = 0;
+
+        var states = new Set();
+
+        // data.forEach(function(row) {
+        for (var d in data) {
+
+          var row = data[d];
+
+          if (ficosel != row.fico_filter) {
+            continue;
+          }
+          if (yearsel != row.year_filter) {
+            continue;
+          }
+          if (vintagesel != row.vintage_filter) {
+            continue;
+          }
+          if (ltvsel != row.ltv_filter) {
+            continue;
+          }
+
+          counter += 1;
+
+          var stateAbbr = row["State"];
+          var stateName = state_abbr[stateAbbr];
+          var stateId = state_abbr_to_id[stateName];
+          var censusVariable = round(row["Default_Prcnt"], 3);
+
+          states.add(stateAbbr);
+
+          // keep track of min and max values
+          if (censusVariable < censusMin) {
+            censusMin = censusVariable;
+          }
+          if (censusVariable > censusMax) {
+            censusMax = censusVariable;
+          }
+
+          var censusObj = {
+            "censusVariable":censusVariable,
+            "Default_Prcnt":round(row["Default_Prcnt"],3),
+            "Defaults":row["Defaults"],
+            "Observations":row["Observations"],
+            "Avg_RiskPoints":row["Avg_RiskPoints"],
+          }
+
+          map.data
+            .getFeatureById(stateId)
+            //.setProperty('census_variable', censusVariable)
+            .setProperty('census_variable', censusObj);
+        };
+
+        for (var s in state_abbr) {
+          if (!(states.has(s))) {
+            var censusObj = {
+              "censusVariable": 0,
+              "Default_Prcnt":0,
+              "Defaults":0,
+              "Observations":0,
+              "Avg_RiskPoints":0,
+            }
+            var stateName = state_abbr[s];
+            var stateId = state_abbr_to_id[stateName];
+            map.data
+              .getFeatureById(stateId)
+              .setProperty('census_variable', censusObj);
+            censusMin = 0;
+          }
+        }
+
+        document.getElementById('census-min').textContent =
+            censusMin.toLocaleString();
+        document.getElementById('census-max').textContent =
+            censusMax.toLocaleString();
+      }
+
+      /** Removes census data from each shape on the map and resets the UI. */
+      function clearCensusData() {
+        censusMin = Number.MAX_VALUE;
+        censusMax = -Number.MAX_VALUE;
+        map.data.forEach(function(row) {
+          row.setProperty('census_variable', undefined);
+        });
+        document.getElementById('data-box').style.display = 'none';
+        document.getElementById('data-caret').style.display = 'none';
+      }
+
+      /**
+       * Applies a gradient style based on the 'census_variable' column.
+       * This is the callback passed to data.setStyle() and is called for each row in
+       * the data set.  Check out the docs for Data.StylingFunction.
+       *
+       * @param {google.maps.Data.Feature} feature
+       */
+      function styleFeature(feature) {
+        var low = [5, 69, 54];  // color of smallest datum
+        var high = [151, 83, 34];   // color of largest datum
+        // var high = [203, 205, 221];
+        // delta represents where the value sits between the min and max    
+        if (feature.getProperty('census_variable') == null) {
+          return;
+        }
+
+        var delta = (feature.getProperty('census_variable')['censusVariable'] - censusMin) /
+            (censusMax - censusMin);
+
+        if (feature.getProperty('census_variable')['censusVariable'] == 0) {
+          delta = 0;
+        }
+
+        console.log("what is delta:" + delta); 
+
+        var color = [];
+        for (var i = 0; i < 3; i++) {
+          // calculate an integer color based on the delta
+          color[i] = (high[i] - low[i]) * delta + low[i];
+        }
+
+        // determine whether to show this shape or not
+        var showRow = true;
+        if (feature.getProperty('census_variable')["censusVariable"] == null ||
+            isNaN(feature.getProperty('census_variable')["censusVariable"])) {
+          showRow = false;
+        }
+
+        var outlineWeight = 0.5, zIndex = 1;
+        if (feature.getProperty('state') === 'hover') {
+          outlineWeight = zIndex = 2;
+        }
+
+        console.log("what is the color = " + color[0] + " | " + color[1] + " | " + color[2]);
+
+        return {
+          strokeWeight: outlineWeight,
+          strokeColor: '#fff',
+          zIndex: zIndex,
+          fillColor: 'hsl(' + color[0] + ',' + color[1] + '%,' + color[2] + '%)',
+          fillOpacity: 0.75,
+          visible: showRow
+        };
+      }
+
+      /**
+       * Responds to the mouse-in event on a map shape (state).
+       *
+       * @param {?google.maps.MouseEvent} e
+       */
+      function mouseInToRegion(e) {
+        // set the hover state so the setStyle function can change the border
+        e.feature.setProperty('state', 'hover');
+
+        var percent = (e.feature.getProperty('census_variable')["censusVariable"] - censusMin) /
+            (censusMax - censusMin) * 100;
+
+        // update the label
+        document.getElementById('data-label').textContent =
+            e.feature.getProperty('NAME');
+        document.getElementById('data-value').textContent =
+            e.feature.getProperty('census_variable')["censusVariable"].toLocaleString();
+        document.getElementById('data-box').style.display = 'block';
+        document.getElementById('data-caret').style.display = 'block';
+        document.getElementById('data-caret').style.paddingLeft = percent + '%';
+        document.getElementById('test-value').textContent = e.feature.getProperty('census_variable')["testvariable"];
+        document.getElementById('defaultno-value').textContent = e.feature.getProperty('census_variable')["Defaults"];
+        document.getElementById('observationno-value').textContent = e.feature.getProperty('census_variable')["Observations"];
+        document.getElementById('averagerisk-value').textContent = e.feature.getProperty('census_variable')["Avg_RiskPoints"];
+      }
+
+      /**
+       * Responds to the mouse-out event on a map shape (state).
+       *
+       * @param {?google.maps.MouseEvent} e
+       */
+      function mouseOutOfRegion(e) {
+        // reset the hover state, returning the border to normal
+        e.feature.setProperty('state', 'normal');
+      }
+
+    </script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDvdyxZpXuv02KqZIdErEBon5C7_Z8F2g&callback=initMap">
+    </script>
+  </body>
+</html>

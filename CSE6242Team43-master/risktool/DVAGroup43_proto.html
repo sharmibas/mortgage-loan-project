@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>DBA Group 43 User Proto</title>
+<link rel="stylesheet" href="style.css">
+<script type="text/javascript" src="riskPoints.js"></script>
+<script type="text/javascript" src="result.js"></script>
+<script type="text/javascript" src="DownPaymentLabels.js"></script>
+<script type="text/javascript" src="FICOLabels.js"></script>
+<script type="text/javascript" src="PurchasePriceLabels.js"></script>
+<script type="text/javascript" src="riskPercentiles.js"></script>
+<script type="text/javascript" src="riskPointRange.js"></script>
+<script type="text/javascript" src="models.js"></script>
+<script>
+  src="https://code.jquery.com/jquery-3.3.1.min.js"
+  integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+  crossorigin="anonymous"</script>
+<script>
+function ReturnSelectList(ID, Data){
+
+      html = "";
+       
+        for(var key in Data) {
+		   
+           html += "<option value=" + Data[key] + ">" + key + "</option>";
+        }
+        document.getElementById(ID).innerHTML = html;
+
+
+}
+</script>
+ 
+</head>
+<body>
+<h1>DVA Group 43 Risk Calculator Tool</h1>
+<div id="textEnter">Please enter your financial values to get your risk appraisal.</div>
+
+<form id="riskCalculator">
+  <div id ="formDiv">
+  <div class="element"><label>FICO Score:</label>
+    <select name="FICO" id="FICO"></select>
+     <script>
+       ReturnSelectList ("FICO", FICOLabels);
+      </script>
+  </div>
+    
+   <div class="element"><label>First Time Buyer:</label><select name="FirstTimeBuyer" id="FirstTimeBuyer">
+        <option value="Y">Yes</option>
+	    <option value="N">No</option>
+	    </select>
+   </div>  
+ 
+   <div class="element"><label>Occupancy Status: </label><select name="OccStatus" id="OccStatus">
+        <option value="P">Primary Residence</option>
+		<option value="S">Second Home</option>
+		<option value="I">Investment</option>
+	    </select>
+   </div>
+
+   <div class="element"><label>Property Type:</label><select name="PropType" id="PropType">
+        <option value="SF">Single Family</option>
+		<option value="CO">Condo</option>
+	    <option value="CP">Co-op</option>
+		<option value="MH">Manufactured Housing</option>
+		<option value="PU">Planned Unit Development  (PUD)</option>
+	    </select>
+    </div>
+
+	<div class="element"><label>Purpose for Loan: </label><select name="Purpose" id="Purpose">
+        <option value="P">Purchase</option>
+		<option value="C">Cash-out Refinance</option>
+	    <option value="N">No Cash-out Refinance</option>
+		</select>
+    </div>
+
+   
+   <div class="element"><label>Term (Months):</label>
+   <span id="TermSlider" style="font-weight:bold;color:black">0</span>
+   <input type="range" min="120" max="360" value="120" class="slider" id="Term"/>
+   </div>
+   
+   <div class="element"><label>Number of Borrowers: </label><select name="NumBorrowers" id="NumBorrowers">
+        <option value="1">One</option>
+	    <option value="2">Two</option>
+	   </select>
+   </div>
+
+   <div class="element"><label>Is there current a recession?: </label><select name="RcssnFlg_l1" id="RcssnFlg_l1">
+        <option value="N">No</option>
+		<option value="Y">Yes</option>
+        </select>
+   </div>
+   
+
+   <div class="element"><label>Purchase Price: $</label>
+   <select name="PurchasePrice" id="PurchasePrice"></select>
+     <script>
+       ReturnSelectList ("PurchasePrice", PurchasePriceLabels);
+      </script>
+   </div>
+   
+   <div class="element"><label>Down Payment: </label>
+   <select name="DownPayment" id="DownPayment"></select>
+     <script>
+       ReturnSelectList ("DownPayment", DownPaymentLabels);
+      </script>
+   </div>
+
+   
+   <div class="element"><label>Monthly Income (before taxes): $</label><input type="number" id = "MonthlyIncome" name="MonthlyIncome" min=0 step=1 value=0>
+   </div>
+   
+   
+   <div class="element"><label>Total Monthly Debt: $</label><input type="number" id="TotalMonthlyDebt" name="TotalMonthlyDebt" min=0 step=1 value=0>
+   </div>
+  <input type="button" id= "submitForm" onclick="calculateScore()" value="Calculate"/>
+   
+    <div id=RiskOutputtxt>You are more risky than</div>
+    <div id="RiskOutput"></div>   
+    
+    <div id ="RiskRateLow"></div>
+    <div id ="RiskRateMed"></div>
+    <div id ="RiskRateHigh"></div>
+  
+</div>
+
+
+</form>
+
+
+
+
+<script>
+
+/*
+*TODO (11/19/2018):
+*
+*	1. Confirm if the logic to find the correct index is appropriate for numericScore() and categoricalScore()
+*   2. Clean up redundency
+*
+*/
+
+var submitForm = document.getElementById("riskCalculator");
+
+function calculateScore(){
+//alert('hi');
+var riskScore = 0;
+
+// USED FOR CALCULATIONS
+//var PurchasePrice = submitForm.form.PurchasePrice.value;
+//var DownPayment = submitForm.form.DownPayment.value;
+//var PropertyValue = submitForm.form.PropertyValue.value;
+//var MonthlyIncome = submitForm.form.MonthlyIncome.value;
+//var TotalMonthlyDebt = submitForm.form.TotalMonthlyDebt.value; 
+
+var PurchasePrice = document.getElementById("PurchasePrice").value;
+var DownPayment = document.getElementById("DownPayment").value;
+//var PropertyValue = submitForm.form.PropertyValue.value;
+var MonthlyIncome = document.getElementById("MonthlyIncome").value;
+var TotalMonthlyDebt = document.getElementById("TotalMonthlyDebt").value;
+
+if(TotalMonthlyDebt / MonthlyIncome > .65)
+{
+ alert("Your total debt cannot exceed 65% of your Monthly Income!")
+ return false;
+
+} 
+
+// NUMERICAL VARIABLES
+//var FICO = submitForm.form.FICO.value;
+//var Term = submitForm.form.Term.value;
+//var NumBorrowers = submitForm.form.NumBorrowers.value;
+
+var FICO = document.getElementById("FICO").value;
+var Term = document.getElementById("Term").value;
+var NumBorrowers = document.getElementById("NumBorrowers").value;
+var OrigDTI = MonthlyIncome/TotalMonthlyDebt;
+var OrigBal = PurchasePrice*(100-DownPayment);
+var OrigLTV = (100-DownPayment);
+
+//IMPORTED VALUES 
+var RealGDP_growth_l1 = values["realGDP"];
+var RealDispInc_growth_l1 = values["RealDispInc_growth_l1"];
+var Unemp_rate_l1 = values["Unemp_rate_l1"];
+var Avg30YrMortgage_rate_l1 = values["Avg30YrMortgage_rate_l1"];
+var DRSFRMACBS_l1 = values["DRSFRMACBS_l1"];
+var QtrsSncLastRcssn_l1 = "39";
+
+//CATEGORICAL VARIABLES
+//var FirstTimeBuyer = submitForm.form.FirstTimeBuyer.value;
+//var OccStatus = submitForm.form.OccStatus.value;  
+//var PropType = submitForm.form.PropType.value;
+//var Purpose = submitForm.form.Purpose.value;
+//var RcssnFlg_l1 = submitForm.form.RcssnFlg_l1.value;
+
+var FirstTimeBuyer = document.getElementById("FirstTimeBuyer").value;
+var OccStatus = document.getElementById("OccStatus").value;
+var PropType = document.getElementById("PropType").value;
+var Purpose = document.getElementById("Purpose").value;
+var RcssnFlg_l1 = document.getElementById("RcssnFlg_l1").value;
+
+//NUMERICAL SCORING
+riskScore += GetRiskScore("FICO", FICO);
+riskScore += GetRiskScore("Term", Term);
+riskScore += GetRiskScore("OrigDTI", OrigDTI);
+riskScore += GetRiskScore("OrigBal", OrigBal);
+riskScore += GetRiskScore("OrigLTV", OrigLTV);
+riskScore += GetRiskScore("NumBorrowers", NumBorrowers);
+
+//CATEGORICAL SCORING
+riskScore += GetRiskScore("FirstTimeBuyer", FirstTimeBuyer);
+riskScore += GetRiskScore("OccStatus", OccStatus);
+riskScore += GetRiskScore("PropType", PropType);
+riskScore += GetRiskScore("Purpose", Purpose);
+riskScore += GetRiskScore("RcssnFlg_l1", RcssnFlg_l1);
+
+//LIVE SCORING
+riskScore += GetRiskScore("RealGDP_growth_l1", RealGDP_growth_l1);
+riskScore += GetRiskScore("RealDispInc_growth_l1", RealDispInc_growth_l1);
+riskScore += GetRiskScore("Unemp_rate_l1", Unemp_rate_l1);
+riskScore += GetRiskScore("Avg30YrMortgage_rate_l1", Avg30YrMortgage_rate_l1);
+riskScore += GetRiskScore("DRSFRMACBS_l1", DRSFRMACBS_l1);
+riskScore += GetRiskScore("QtrsSncLastRcssn_l1", QtrsSncLastRcssn_l1);
+
+
+var outputScore = document.getElementById("RiskOutput");
+var outputScoretxt = document.getElementById("RiskOutputtxt");
+
+ for(var key in riskPercentiles) {
+		  	
+         if(key >= riskScore){
+		   
+			//outputScoretxt.hidden = false;
+            outputScoretxt.style.display = "block";
+			var riskPercentilesOutput = riskPercentiles[key];
+			riskPercentilesOutput = riskPercentilesOutput *100;
+			riskPercentilesOutput = riskPercentilesOutput.toFixed(2);
+		    outputScore.innerHTML = riskPercentilesOutput + "% of other borrowers.";
+		  
+		  break;
+		 }
+    }
+    
+
+  console.log("riskScore",riskScore);
+
+  var bucket = 0;
+  
+for (var key in riskPointRange){
+  if(riskScore < riskPointRange[key]){
+    bucket = key;
+    break;
+  }
+}
+
+console.log("bucket value",bucket);
+
+modelKey = 1;
+if (Term <= 180){
+    modelKey = 15;
+}else{
+modelKey = 30;
+}
+
+console.log("Model Key"+modelKey);
+var modelValues = [];
+for (var key in models){
+    if (key == modelKey){
+    modelValues.push(models[key])
+    console.log("modelvalues are : "+modelValues);
+    
+    }
+}
+
+var fields = [];
+fields = modelValues.toString().split('~');
+console.log("Fields"+fields);
+console.log(fields.length);
+
+var Avg15YrMortgage_rate_l1 = values["Avg15YrMortgage_rate_l1"];
+var marketRate = 0;
+//Avg30YrMortgage_rate_l1
+var rateRange = 0;
+if(modelKey==30){
+    marketRate = Avg30YrMortgage_rate_l1;
+if(Avg30YrMortgage_rate_l1 <= 5){
+    rateRange = 0;
+}else{
+    rateRange = 1;
+}
+}
+else{
+    marketRate = Avg15YrMortgage_rate_l1;
+if(Avg15YrMortgage_rate_l1 <= 5){
+    rateRange = 0;
+}else{
+    rateRange = 1;
+}
+}
+
+console.log("ra",rateRange);
+var arrayHigh = [];
+var arrayLow = [];
+var arrayMed = [];
+
+var loop=0;
+for(var i=0;i<(fields.length)-1;i++){
+var med = fields[i];
+console.log("med1"+med);
+var array = [];
+array = med.toString().split(',');
+console.log("Array",array);
+if(loop == 0){
+if(array[2] == 'low')
+{
+if(array[1] == rateRange){
+console.log("Intercept:",array[3]);
+console.log("Slope:",array[4]);
+arrayLow = [array[3],array[4]]
+}
+}
+if(array[2] == 'high')
+{
+if(array[1] == rateRange){
+console.log("Intercept:",array[3]);
+console.log("Slope:",array[4]);
+
+arrayHigh = [array[3],array[4]]
+}
+}
+if(array[2] == 'med')
+{
+if(array[1] == rateRange){
+console.log("Intercept:",array[3]);
+console.log("Slope:",array[4]);
+arrayMed = [array[3],array[4]]
+}
+}
+console.log("Rate",array[2]);
+}
+if(loop > 0){
+if(array[3] == 'low')
+{
+if(array[2] == rateRange){
+console.log("Intercept:",array[4]);
+console.log("Slope:",array[5]);
+arrayLow = [array[4],array[5]]
+}
+}
+if(array[3] == 'high')
+{
+if(array[2] == rateRange){
+console.log("Intercept:",array[4]);
+console.log("Slope:",array[5]);
+
+arrayHigh = [array[4],array[5]]
+}
+}
+if(array[3] == 'med')
+{
+if(array[2] == rateRange){
+console.log("Intercept:",array[4]);
+console.log("Slope:",array[5]);
+arrayMed = [array[4],array[5]]
+}
+}
+console.log("Rate",array[3]);
+
+}
+loop++;
+}
+
+console.log("Array",arrayHigh,arrayLow,arrayMed);
+console.log("Bucket",bucket);
+console.log("marketRate",marketRate);
+console.log("array low",arrayLow[0],"",arrayLow[1]);
+var rate_low = parseFloat(arrayLow[0])+parseFloat(bucket)*parseFloat(arrayLow[1])+parseFloat(marketRate);
+var rate_high = parseFloat(arrayHigh[0])+parseFloat(bucket)*parseFloat(arrayHigh[1])+parseFloat(marketRate);
+var rate_med = parseFloat(arrayMed[0])+parseFloat(bucket)*parseFloat(arrayMed[1])+parseFloat(marketRate);
+
+console.log("Rates:",rate_high,"",rate_med,"",rate_low);
+var riskRateLow = document.getElementById("RiskRateLow");
+var riskRateHigh = document.getElementById("RiskRateHigh");
+var riskRateMed = document.getElementById("RiskRateMed");
+riskRateLow.innerHTML = "Low Rate : "+rate_low.toFixed(2);
+riskRateHigh.innerHTML = "High Rate : "+rate_high.toFixed(2);
+riskRateMed.innerHTML = "Median Rate : "+rate_med.toFixed(2);
+}
+
+
+//HELPER FUNCTIONS
+//
+//
+//
+function GetRiskScore(itemName, itemValue){
+//alert("itemName, itemValue"+itemName, itemValue)
+var itemIndex = riskData[itemName][2].findIndex(function(item, i){
+if(riskData[itemName][1] === "false")
+    //alert("o if");
+    return item === itemValue
+  return item >= itemValue;
+
+});
+//alert("inbet"+riskData[itemName][1]);
+//alert("inbet..."+itemName);
+//alert("riskData[itemName]"+riskData[itemName]);
+//If CATEGORICAL is false then:
+//account for extra 0th element in numerical index array
+if(riskData[itemName][1] === false){
+     //alert('in 1 if');
+	 if(itemIndex == 0) 
+       itemIndex = 1;
+	 
+	 itemIndex -= 1;   
+     
+}
+
+
+//riskScore = ((riskData[itemName][0] * (itemIndex % 10 === 0  && itemIndex !== 0 ? 10: itemIndex % 10 ) * (itemIndex  / (riskData[itemName][2].length-1))) * 10);
+
+if(itemIndex < 0)
+    riskScore = 0
+else
+    riskScore = riskData[itemName][3][itemIndex]
+
+	
+console.log("itemName " + itemName + " score: " + riskScore)
+return riskScore;
+//alert("In function"+riskScore);
+}
+
+</script>
+
+<script>
+
+var slider2 = document.getElementById("Term");
+var output2 = document.getElementById("TermSlider");
+
+// Update the current slider value (each time you drag the slider handle)
+
+slider2.oninput = function() {
+    output2.innerHTML = this.value;
+}
+</script>
+
+
+
+</body>
+</html>

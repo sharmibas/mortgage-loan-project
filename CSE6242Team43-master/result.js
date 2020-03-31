@@ -1,0 +1,1 @@
+var values = {'realGDP': '3.5', 'RealDispInc_growth_l1': '2.5', 'Unemp_rate_l1': '3.7', 'Avg30YrMortgage_rate_l1': '4.94', 'DRSFRMACBS_l1': '3.25'}

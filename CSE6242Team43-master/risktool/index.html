@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>DBA Group 43 User Proto</title>
+<link rel="stylesheet" href="style.css">
+<script type="text/javascript" src="riskPoints.js"></script>
+<script type="text/javascript" src="result.js"></script>
+<script type="text/javascript" src="DownPaymentLabels.js"></script>
+<script type="text/javascript" src="FICOLabels.js"></script>
+<script type="text/javascript" src="PurchasePriceLabels.js"></script>
+<script type="text/javascript" src="riskPercentiles.js"></script>
+<script
+  src="https://code.jquery.com/jquery-3.3.1.min.js"
+  integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+  crossorigin="anonymous"></script>
+<script>
+function ReturnSelectList(ID, Data){
+
+      html = "";
+       
+        for(var key in Data) {
+		   
+           html += "<option value=" + Data[key] + ">" + key + "</option>";
+        }
+        document.getElementById(ID).innerHTML = html;
+
+
+}
+</script>
+ 
+</head>
+<body>
+<h1>DVA Group 43 Risk Calculator Tool</h1>
+<div id="textEnter">Please enter your financial values to get your risk appraisal.</div>
+
+<form id="riskCalculator" onsubmit="calculateScore()">
+  <div id ="formDiv">
+  <div class="element"><label>FICO Score:</label>
+    <select name="FICO" id="FICO"></select>
+     <script>
+       ReturnSelectList ("FICO", FICOLabels);
+      </script>
+  </div>
+    
+   <div class="element"><label>First Time Buyer:</label><select name="FirstTimeBuyer">
+        <option value="Y">Yes</option>
+	    <option value="N">No</option>
+	    </select>
+   </div>  
+ 
+   <div class="element"><label>Occupancy Status: </label><select name="OccStatus">
+        <option value="P">Primary Residence</option>
+		<option value="S">Second Home</option>
+		<option value="I">Investment</option>
+	    </select>
+   </div>
+
+   <div class="element"><label>Property Type:</label><select name="PropType">
+        <option value="SF">Single Family</option>
+		<option value="CO">Condo</option>
+	    <option value="CP">Co-op</option>
+		<option value="MH">Manufactured Housing</option>
+		<option value="PU">Planned Unit Development  (PUD)</option>
+	    </select>
+    </div>
+
+	<div class="element"><label>Purpose for Loan: </label><select name="Purpose">
+        <option value="P">Purchase</option>
+		<option value="C">Cash-out Refinance</option>
+	    <option value="N">No Cash-out Refinance</option>
+		</select>
+    </div>
+
+   
+   <div class="element"><label>Term (Months):</label>
+   <span id="TermSlider" style="font-weight:bold;color:black">0</span>
+   <input type="range" min="120" max="360" value="120" class="slider" id="Term"/>
+   </div>
+   
+   <div class="element"><label>Number of Borrowers: </label><select name="NumBorrowers">
+        <option value="1">One</option>
+	    <option value="2">Two</option>
+	   </select>
+   </div>
+
+   <div class="element"><label>Is there current a recession?: </label><select name="RcssnFlg_l1">
+        <option value="N">No</option>
+		<option value="Y">Yes</option>
+        </select>
+   </div>
+   
+
+   <div class="element"><label>Purchase Price: $</label>
+   <select name="PurchasePrice" id="PurchasePrice"></select>
+     <script>
+       ReturnSelectList ("PurchasePrice", PurchasePriceLabels);
+      </script>
+   </div>
+   
+   <div class="element"><label>Down Payment: </label>
+   <select name="DownPayment" id="DownPayment"></select>
+     <script>
+       ReturnSelectList ("DownPayment", DownPaymentLabels);
+      </script>
+   </div>
+
+   
+   <div class="element"><label>Monthly Income (before taxes): $</label><input type="number" name="MonthlyIncome" min=0 step=1 value=0>
+   </div>
+   
+   
+   <div class="element"><label>Total Monthly Debt: $</label><input type="number" name="TotalMonthlyDebt" min=0 step=1 value=0>
+   </div>
+  <input type="button" id= "submitForm" onclick=calculateScore() value="Calculate"/>
+    
+    <div id=RiskOutputtxt hidden=true>You are more risky than</div>
+    <div id="RiskOutput"></div>
+
+  
+</div>
+
+
+</form>
+
+
+
+
+<script>
+
+/*
+*TODO (11/19/2018):
+*
+*	1. Confirm if the logic to find the correct index is appropriate for numericScore() and categoricalScore()
+*   2. Clean up redundency
+*
+*/
+
+var submitForm = document.getElementById("submitForm");
+
+function calculateScore(){
+
+var riskScore = 0;
+
+// USED FOR CALCULATIONS
+var PurchasePrice = submitForm.form.PurchasePrice.value;
+var DownPayment = submitForm.form.DownPayment.value;
+//var PropertyValue = submitForm.form.PropertyValue.value;
+var MonthlyIncome = submitForm.form.MonthlyIncome.value;
+var TotalMonthlyDebt = submitForm.form.TotalMonthlyDebt.value; 
+
+if(TotalMonthlyDebt / MonthlyIncome > .65)
+{
+ alert("Your total debt cannot exceed 65% of your Monthly Income!")
+ return false;
+
+} 
+
+// NUMERICAL VARIABLES
+var FICO = submitForm.form.FICO.value;
+var Term = submitForm.form.Term.value;
+var NumBorrowers = submitForm.form.NumBorrowers.value;
+
+var OrigDTI = MonthlyIncome/TotalMonthlyDebt;
+var OrigBal = PurchasePrice*(100-DownPayment);
+var OrigLTV = (100-DownPayment);
+
+//IMPORTED VALUES 
+var RealGDP_growth_l1 = values["realGDP"];
+var RealDispInc_growth_l1 = values["RealDispInc_growth_l1"];
+var Unemp_rate_l1 = values["Unemp_rate_l1"];
+var Avg30YrMortgage_rate_l1 = values["Avg30YrMortgage_rate_l1"];
+var DRSFRMACBS_l1 = values["DRSFRMACBS_l1"];
+var QtrsSncLastRcssn_l1 = "39";
+
+//CATEGORICAL VARIABLES
+var FirstTimeBuyer = submitForm.form.FirstTimeBuyer.value;
+var OccStatus = submitForm.form.OccStatus.value;  
+var PropType = submitForm.form.PropType.value;
+var Purpose = submitForm.form.Purpose.value;
+var RcssnFlg_l1 = submitForm.form.RcssnFlg_l1.value;
+
+//NUMERICAL SCORING
+riskScore += GetRiskScore("FICO", FICO);
+riskScore += GetRiskScore("Term", Term);
+riskScore += GetRiskScore("OrigDTI", OrigDTI);
+riskScore += GetRiskScore("OrigBal", OrigBal);
+riskScore += GetRiskScore("OrigLTV", OrigLTV);
+riskScore += GetRiskScore("NumBorrowers", NumBorrowers);
+
+//CATEGORICAL SCORING
+riskScore += GetRiskScore("FirstTimeBuyer", FirstTimeBuyer);
+riskScore += GetRiskScore("OccStatus", OccStatus);
+riskScore += GetRiskScore("PropType", PropType);
+riskScore += GetRiskScore("Purpose", Purpose);
+riskScore += GetRiskScore("RcssnFlg_l1", RcssnFlg_l1);
+
+//LIVE SCORING
+riskScore += GetRiskScore("RealGDP_growth_l1", RealGDP_growth_l1);
+riskScore += GetRiskScore("RealDispInc_growth_l1", RealDispInc_growth_l1);
+riskScore += GetRiskScore("Unemp_rate_l1", Unemp_rate_l1);
+riskScore += GetRiskScore("Avg30YrMortgage_rate_l1", Avg30YrMortgage_rate_l1);
+riskScore += GetRiskScore("DRSFRMACBS_l1", DRSFRMACBS_l1);
+riskScore += GetRiskScore("QtrsSncLastRcssn_l1", QtrsSncLastRcssn_l1);
+
+
+
+var outputScore = document.getElementById("RiskOutput");
+var outputScoretxt = document.getElementById("RiskOutputtxt");
+
+ for(var key in riskPercentiles) {
+		  		   
+         if(key >= riskScore){
+		   
+			outputScoretxt.hidden = false;
+			var riskPercentilesOutput = riskPercentiles[key];
+			riskPercentilesOutput = riskPercentilesOutput *100;
+			riskPercentilesOutput = riskPercentilesOutput.toFixed(2);
+		    outputScore.innerHTML = riskPercentilesOutput + "% of other borrowers.";
+		  
+		  break;
+		 }
+    }
+    
+
+
+
+}
+
+
+//HELPER FUNCTIONS
+//
+//
+//
+function GetRiskScore(itemName, itemValue){
+
+var itemIndex = riskData[itemName][2].findIndex(function(item, i){
+
+if(riskData[itemName][1] === "false")
+    return item === itemValue
+
+  return item >= itemValue;
+
+});
+   
+//If CATEGORICAL is false then:
+//account for extra 0th element in numerical index array
+if(riskData[itemName][1] === false){
+     
+	 if(itemIndex == 0) 
+       itemIndex = 1;
+	 
+	 itemIndex -= 1;   
+     
+}
+
+//riskScore = ((riskData[itemName][0] * (itemIndex % 10 === 0  && itemIndex !== 0 ? 10: itemIndex % 10 ) * (itemIndex  / (riskData[itemName][2].length-1))) * 10);
+
+if(itemIndex < 0)
+    riskScore = 0
+else
+    riskScore = riskData[itemName][3][itemIndex]
+
+	
+//alert("itemName " + itemName + " score: " + riskScore)
+return riskScore;
+}
+
+</script>
+
+<script>
+
+var slider2 = document.getElementById("Term");
+var output2 = document.getElementById("TermSlider");
+
+// Update the current slider value (each time you drag the slider handle)
+
+slider2.oninput = function() {
+    output2.innerHTML = this.value;
+}
+</script>
+
+
+
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link href="choropleth.css" rel="stylesheet">
+<script src="lib/d3.v3.min.js"></script>
+<script src="lib/topojson.v1.min.js"></script>
+<script src="lib/d3-queue.v3.min.js"></script>
+
+<head>
+    <title>US Default Percentage</title>
+    <h1>US Default Percentage<br></h1>
+</head>
+
+<body>
+    <script src="lib/d3.tip.v0.6.3.js"></script>
+    <div id="filterdiv">
+	    <div id="vintagediv" class="filter">
+	    	<span>Vintage</span>
+		</div>    
+	    <div id="yeardiv" class="filter">
+	    	<span>Year</span>
+		</div>
+	    <div id="ficodiv" class="filter">
+	    	<span>FICO</span>
+		</div>
+		<div id="ltvdiv" class="filter">
+			<span>LTV</span>
+		</div>
+	</div>
+    <script src="choropleth.js"></script>
+	<p>
+		<b>Default:</b> Mortgages that are 120+ days delinquent, Charge-Offs, Short Sales, or REO Dispositions <br><br>
+		<i>*Only filter settings with at least 25 total loan observations are considered significant in this visualization.</i>
+	</p>
+</body>
+</html>

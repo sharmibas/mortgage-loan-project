@@ -1,0 +1,48 @@
+.counties {
+  fill: none;
+}
+
+.states {
+  fill: none;
+  stroke: white;
+  stroke-linejoin: round;
+}
+
+.highlight {
+  fill: none;
+  stroke: lightgrey;
+  stroke-linejoin: round;
+}
+
+body {
+  font-family: Verdana,Arial,sans-serif;
+}
+
+.selector {
+  font-size: 1.0em;
+  margin: 60px 0 5px 0;
+}
+
+.axis line {
+  fill: none;
+  stroke: black;
+  stroke-width: 1px;
+}
+.axis path {
+  fill: none;
+  stroke: black;
+  stroke-width: 1px;
+}
+.axis text {
+  font-family: sans-serif;
+  font-size: 10px;
+  fill: black;
+}
+.filter {
+  display: inline-block;
+}
+#filterdiv {
+  position: absolute;
+  top: 0;
+  margin: 10px;
+}
